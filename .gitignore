@@ -1,0 +1,126 @@
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Backup files
+*~
+*.bak
+*.swp
+*.swo
+*.tmp
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+*.sln.iml
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+
+# Dependency directories
+node_modules/
+vendor/
+.bundle/
+bower_components/
+jspm_packages/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build outputs
+dist/
+out/
+build/
+target/
+site/
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.class
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.egg-info/
+*.egg
+.eggs/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage & Test
+coverage/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.pytest_cache/
+
+# Environment & Configuration
+.env
+.env.*
+!.env.example
+.npmrc
+.yarnrc
+
+# Documentation build
+docs/_build/
+_site/
+.docusaurus
+
+# Pre-commit environments
+.pre-commit-cache/
+.cache/
+.cache/pre-commit/
+
+# Misc
+temp/
+tmp/
+.tmp/
+.sass-cache/
+
+# Neovim specific
+doc/tags
+doc/tags-*
+
+# Lua specific
+luac.out
+*.src.rock
+*.zip
+*.tar.gz
