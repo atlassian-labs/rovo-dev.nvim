@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim-version: [stable, nightly]
+
+    name: Test with Neovim ${{ matrix.neovim-version }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim-version }}
+
+      - name: Create cache directories
+        run: |
+          mkdir -p ~/.luarocks
+          mkdir -p ~/.local/share/nvim/site/pack
+
+      - name: Cache plugin dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.local/share/nvim/site/pack
+          key: ${{ runner.os }}-nvim-plugins-${{ hashFiles('**/test.sh') }}-${{ matrix.neovim-version }}
+          restore-keys: |
+            ${{ runner.os }}-nvim-plugins-
+
+      - name: Install dependencies
+        run: |
+          mkdir -p ~/.local/share/nvim/site/pack/vendor/start
+          if [ ! -d "$HOME/.local/share/nvim/site/pack/vendor/start/plenary.nvim" ]; then
+            echo "Cloning plenary.nvim..."
+            git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
+          else
+            echo "plenary.nvim directory already exists, updating..."
+            cd ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim && git pull origin master
+          fi
+
+      - name: Verify test directory structure
+        run: |
+          ls -la ./tests/
+          ls -la ./tests/spec/
+
+      - name: Display Neovim version
+        run: nvim --version
+
+      - name: Run tests
+        run: |
+          export PLUGIN_ROOT="$(pwd)"
+          ./scripts/test.sh
+        continue-on-error: false
+# Documentation validation has been moved to the dedicated docs.yml workflow
