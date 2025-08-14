@@ -1,0 +1,253 @@
+*rovo-dev.txt*             Seamless integration between Rovo Dev AI and Neovim
+
+================================================================================
+CONTENTS                                                      *rovo-dev-contents*
+
+1. Introduction ........................... |rovo-dev-introduction|
+2. Installation ........................... |rovo-dev-installation|
+3. Usage .................................. |rovo-dev-usage|
+4. Commands ............................... |rovo-dev-commands|
+5. Configuration .......................... |rovo-dev-configuration|
+6. API .................................... |rovo-dev-api|
+7. Behavior ............................... |rovo-dev-behavior|
+8. Contributing ........................... |rovo-dev-contributing|
+9. License ................................ |rovo-dev-license|
+
+================================================================================
+INTRODUCTION                                              *rovo-dev-introduction*
+
+rovo-dev.nvim is a Neovim plugin that integrates Atlassian's Rovo Dev CLI into
+a toggleable, fixed-width terminal split. The plugin provides seamless access
+to AI-powered development assistance while maintaining your workflow and keeping
+your buffers synchronized when Rovo Dev makes file changes.
+
+Features:
+- Toggle a terminal split on the right or left
+- Fixed-width split (winfixwidth) that doesn't auto-expand when other windows
+  are closed
+- Starts the Rovo Dev CLI on first open and reuses the same terminal buffer
+- Automatically refreshes buffers when files change on disk (focus/idle events
+  and terminal output; debounced)
+- Smart notifications via vim.notify for file changes (only for visible buffers)
+- Multiple CLI flag support with dedicated commands and keymaps
+- Configurable positioning (left or right split)
+
+================================================================================
+INSTALLATION                                              *rovo-dev-installation*
+
+Using lazy.nvim (recommended): >lua
+    {
+      "atlassian-labs/rovo-dev.nvim",
+      cmd = { "RovoDevToggle" },
+      config = function(_, opts)
+        require("rovo-dev").setup(opts)
+      end,
+      opts = {
+        terminal = {
+          cmd = { "acli", "rovodev", "run" },
+          side = "right",
+          width = 0.33,
+        },
+        file_refresh = {
+          enable = true,
+          refresh_on_terminal_output = true,
+          refresh_debounce_ms = 200,
+        },
+        keymaps = {
+          toggle = {
+            normal = "<C-,>",
+            terminal = "<C-,>",
+          },
+          run = {
+            restore = '<leader>rR',
+            verbose = '<leader>rV',
+            shadow = '<leader>rS',
+            yolo = '<leader>rY',
+          }
+        },
+        window = { number = false, signcolumn = "no", winfixwidth = true },
+      },
+    }
+<
+
+Using packer.nvim: >lua
+    use {
+      "atlassian-labs/rovo-dev.nvim",
+      config = function()
+        require("rovo-dev").setup()
+      end
+    }
+<
+
+================================================================================
+USAGE                                                            *rovo-dev-usage*
+
+Toggle the Rovo Dev terminal with a simple command or keymap: >vim
+    :RovoDevToggle
+<
+
+Or use the default keymap `<C-,>` in normal or terminal mode.
+
+The plugin also supports Rovo Dev CLI flags: >vim
+    :RovoDevRestore  " Start with --restore flag
+    :RovoDevVerbose  " Start with --verbose flag
+    :RovoDevShadow   " Start with --shadow flag
+    :RovoDevYolo     " Start with --yolo flag
+<
+
+Note: Some terminals don't recognize Ctrl + punctuation (like <C-,>). If it
+doesn't work in your terminal, set your own mappings under `opts.keymaps`.
+
+================================================================================
+COMMANDS                                                      *rovo-dev-commands*
+
+                                                              *:RovoDevToggle*
+:RovoDevToggle          Toggle the Rovo Dev terminal split
+
+                                                             *:RovoDevRestore*
+:RovoDevRestore         Start/toggle Rovo Dev with --restore flag
+
+                                                             *:RovoDevVerbose*
+:RovoDevVerbose         Start/toggle Rovo Dev with --verbose flag
+
+                                                              *:RovoDevShadow*
+:RovoDevShadow          Start/toggle Rovo Dev with --shadow flag
+
+                                                                *:RovoDevYolo*
+:RovoDevYolo            Start/toggle Rovo Dev with --yolo flag
+
+================================================================================
+CONFIGURATION                                            *rovo-dev-configuration*
+
+Complete configuration options: >lua
+    {
+      terminal = {
+        cmd = { "acli", "rovodev", "run" },
+        side = "right",          -- "right" | "left"
+        width = 0.33,            -- 0<width<1 as ratio, else fixed columns
+      },
+      file_refresh = {
+        enable = true,
+        refresh_on_terminal_output = true,
+        refresh_debounce_ms = 200,
+      },
+      keymaps = {
+        toggle = {
+          normal = "<C-,>",
+          terminal = "<C-,>",
+        },
+        run = {
+          restore = '<leader>rR',
+          verbose = '<leader>rV',
+          shadow = '<leader>rS',
+          yolo = '<leader>rY',
+        }
+      },
+      window = {
+        number = false,
+        relativenumber = false,
+        signcolumn = "no",
+        cursorline = false,
+        wrap = false,
+        winfixwidth = true,
+        sidescrolloff = 0,
+        sidescroll = 1,
+        foldcolumn = "0",
+        colorcolumn = "",
+      },
+    }
+<
+
+                                                     *rovo-dev-config-terminal*
+terminal.cmd            Command to start the Rovo Dev CLI
+                        Default: { "acli", "rovodev", "run" }
+
+terminal.side           Which side to open the terminal split
+                        Options: "right" | "left"
+                        Default: "right"
+
+terminal.width          Width of the split
+                        If 0 < width < 1, treated as ratio of total columns
+                        Otherwise, treated as fixed number of columns
+                        Default: 0.33
+
+                                                 *rovo-dev-config-file-refresh*
+file_refresh.enable     Enable automatic buffer refresh
+                        Default: true
+
+file_refresh.refresh_on_terminal_output
+                        Trigger checktime when terminal produces output
+                        Default: true
+
+file_refresh.refresh_debounce_ms
+                        Debounce for terminal-output-triggered checktime (ms)
+                        Default: 200
+
+                                                     *rovo-dev-config-keymaps*
+keymaps.toggle.normal   Normal mode keymap for toggling Rovo Dev
+                        Default: "<C-,>"
+
+keymaps.toggle.terminal Terminal mode keymap for toggling Rovo Dev
+                        Default: "<C-,>"
+
+keymaps.run.*           Keymaps for CLI flag variants
+                        restore: Default '<leader>rR'
+                        verbose: Default '<leader>rV'
+                        shadow: Default '<leader>rS'
+                        yolo: Default '<leader>rY'
+
+                                                       *rovo-dev-config-window*
+window.*                Window-local options applied to the terminal window
+                        See |vim.wo| for available options
+                        Default includes winfixwidth = true
+
+================================================================================
+API                                                                *rovo-dev-api*
+
+require("rovo-dev").setup({opts})                           *rovo-dev.setup()*
+    Initialize the plugin with the given configuration options.
+
+    Parameters: ~
+        {opts} (table) Configuration options (see |rovo-dev-configuration|)
+
+    Returns: ~
+        Plugin module table
+
+require("rovo-dev").toggle()                                *rovo-dev.toggle()*
+    Toggle the Rovo Dev terminal split.
+
+================================================================================
+BEHAVIOR                                                      *rovo-dev-behavior*
+
+Session Persistence:
+    The terminal buffer and job persist when the window is closed
+    (`bufhidden=hide`). Reopening shows the same session. If the job died,
+    a fresh session is created.
+
+Fixed Width:
+    Uses `winfixwidth = true` to prevent auto-resizing when other windows
+    change. If it's the only window in the tab, Neovim will still use the
+    full width (that's expected).
+
+File Synchronization:
+    Automatically runs `:checktime` on focus/idle events and terminal output.
+    Unmodified buffers reload automatically; locally modified buffers are not
+    clobbered and you'll see the usual Neovim changed-on-disk warning.
+    Terminal-output-triggered refreshes are debounced.
+
+Smart Notifications:
+    vim.notify messages are shown when a buffer is reloaded from disk and when
+    a changed-on-disk conflict is detected (buffer has unsaved edits). Only
+    notifies about file changes for buffers visible in non-floating windows.
+
+================================================================================
+CONTRIBUTING                                              *rovo-dev-contributing*
+
+Contributions to rovo-dev.nvim are welcome! Please see CONTRIBUTING.md for
+details.
+
+================================================================================
+LICENSE                                                        *rovo-dev-license*
+
+Copyright (c) 2024 Atlassian US., Inc.
+MIT licensed, see LICENSE file.

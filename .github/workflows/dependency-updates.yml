@@ -1,0 +1,138 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    # Allow manual triggering
+
+# Add explicit permissions needed for creating issues
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-github-actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check GitHub Actions for updates manually
+        id: actions-check
+        run: |
+          echo "Checking for GitHub Action updates"
+          # Create a report of current GitHub Actions used
+          echo "" > actions_changes.txt
+          grep -r "uses:" --include="*.yml" .github/workflows/ | sort | uniq > current_actions.txt
+          echo "Current GitHub Actions:" >> actions_changes.txt
+          cat current_actions.txt >> actions_changes.txt
+
+      - name: Create Actions Update Report
+        run: |
+          echo "# GitHub Actions Updates" > actions_updates.md
+          echo "" >> actions_updates.md
+          echo "## Current Actions" >> actions_updates.md
+          echo "" >> actions_updates.md
+          echo "The following GitHub Actions are used in this repository:" >> actions_updates.md
+          echo "" >> actions_updates.md
+          echo "```" >> actions_updates.md
+          cat current_actions.txt >> actions_updates.md
+          echo "```" >> actions_updates.md
+          echo "" >> actions_updates.md
+          echo "To check for updates, visit the GitHub repositories for these actions." >> actions_updates.md
+
+      - name: Upload Actions Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: actions-updates
+          path: actions_updates.md
+
+  check-neovim-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check latest Neovim version
+        id: neovim-version
+        run: |
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest | jq -r .tag_name)
+          LATEST_VERSION=${LATEST_RELEASE#v}
+          echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
+
+          # Get current required version from README
+          CURRENT_VERSION=$(grep -o "Neovim [0-9]\+\.[0-9]\+" README.md | head -1 | sed 's/Neovim //')
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          # Compare versions
+          if [ "$CURRENT_VERSION" \!= "$LATEST_VERSION" ]; then
+            echo "update_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "update_available=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Generate report
+          echo "# Neovim Version Check" > neovim_version.md
+          echo "" >> neovim_version.md
+          echo "Current minimum required version: **$CURRENT_VERSION**" >> neovim_version.md
+          echo "Latest Neovim version: **$LATEST_VERSION**" >> neovim_version.md
+          echo "" >> neovim_version.md
+
+          if [ "$CURRENT_VERSION" \!= "$LATEST_VERSION" ]; then
+            echo "⚠️ **Update Available**: Consider updating to support the latest Neovim features." >> neovim_version.md
+
+            # Get the changelog for the new version
+            echo "" >> neovim_version.md
+            echo "## Notable Changes in Neovim $LATEST_VERSION" >> neovim_version.md
+            echo "" >> neovim_version.md
+            echo "Check the [official release notes](https://github.com/neovim/neovim/releases/tag/$LATEST_RELEASE) for details." >> neovim_version.md
+          else
+            echo "✅ **Up to Date**: Your plugin supports the latest Neovim version." >> neovim_version.md
+          fi
+
+      - name: Upload Neovim Version Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: neovim-version
+          path: neovim_version.md
+
+  create-update-issue:
+    needs: [check-github-actions, check-neovim-version]
+    if: github.event_name == 'schedule' # Only create issues on scheduled runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Neovim version report
+        uses: actions/download-artifact@v4
+        with:
+          name: neovim-version
+
+      - name: Download Actions report
+        uses: actions/download-artifact@v4
+        with:
+          name: actions-updates
+
+      - name: Combine reports
+        run: |
+          echo "# Weekly Dependency Update Report" > combined_report.md
+          echo "" >> combined_report.md
+          echo "This automated report checks for updates to dependencies used in Rovo Dev." >> combined_report.md
+          echo "" >> combined_report.md
+
+          # Add Neovim version info
+          cat neovim_version.md >> combined_report.md
+          echo "" >> combined_report.md
+
+          # Add GitHub Actions info
+          cat actions_updates.md >> combined_report.md
+          echo "" >> combined_report.md
+
+      - name: Create Issue for Updates
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: Weekly Dependency Update Check
+          content-filepath: combined_report.md
+          labels: |
+            dependencies
+            automated

@@ -1,0 +1,171 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.2.3)'
+        required: true
+      prerelease:
+        description: 'Is this a prerelease?'
+        type: boolean
+        default: false
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag or input
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            # Extract version from the tag (remove 'v' prefix)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+            echo "Using version from tag: ${VERSION}"
+          else
+            # For manual workflow dispatch
+            VERSION="${{ github.event.inputs.version }}"
+            echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+            echo "Using provided version: ${VERSION}"
+          fi
+
+      - name: Validate version format
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Validating version format: ${{ steps.get_version.outputs.VERSION }}"
+          if ! [[ ${{ steps.get_version.outputs.VERSION }} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must be in the format X.Y.Z"
+            exit 1
+          fi
+
+      - name: Check tag doesn't already exist
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if git rev-parse "v${{ steps.get_version.outputs.VERSION }}" >/dev/null 2>&1; then
+            echo "::error::Tag v${{ steps.get_version.outputs.VERSION }} already exists"
+            exit 1
+          fi
+
+      - name: Verify version.lua matches tag (tag push)
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          FILE_VER=$(grep -o 'version = "[^"]\+"' lua/rovo-dev/version.lua | sed -E 's/version = "([^"]+)"/\1/')
+          echo "version.lua=$FILE_VER, tag=$VERSION"
+          if [ "$FILE_VER" != "$VERSION" ]; then
+            echo "::error::lua/rovo-dev/version.lua ($FILE_VER) does not match tag version ($VERSION)"
+            exit 1
+          fi
+
+      - name: Update version.lua and commit (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          cat > lua/rovo-dev/version.lua <<EOF
+          return {
+            -- Semantic version for this plugin (no leading 'v')
+            version = "${VERSION}",
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lua/rovo-dev/version.lua
+          git commit -m "chore(release): bump version.lua to ${VERSION}"
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          git push origin "$CURRENT_BRANCH"
+
+      - name: Verify CHANGELOG has entry for version
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          echo "Checking CHANGELOG.md for version ${VERSION}"
+          if ! grep -Eq "^## \\[(?i:${VERSION})\\]|^## (?i:${VERSION})" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md must contain a section header for ${VERSION} (e.g. '## [${VERSION}] - YYYY-MM-DD')"
+            echo "Example format: ## [${VERSION}] - $(date +%Y-%m-%d)"
+            exit 1
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          # Prefer an explicit entry in CHANGELOG.md; support '## [VERSION]' or '## VERSION'
+          if grep -qE "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "Extracting changelog for v${VERSION} from CHANGELOG.md (bracketed)"
+            SECTION_START=$(grep -n "^## \[$VERSION\]" CHANGELOG.md | head -1 | cut -d: -f1)
+            NEXT_SECTION=$(tail -n +$((SECTION_START+1)) CHANGELOG.md | grep -n "^## " | head -1 | cut -d: -f1)
+          elif grep -qE "^## $VERSION" CHANGELOG.md; then
+            echo "Extracting changelog for v${VERSION} from CHANGELOG.md (plain)"
+            SECTION_START=$(grep -n "^## $VERSION" CHANGELOG.md | head -1 | cut -d: -f1)
+            NEXT_SECTION=$(tail -n +$((SECTION_START+1)) CHANGELOG.md | grep -n "^## " | head -1 | cut -d: -f1)
+          else
+            echo "::error::Expected to find a '## [${VERSION}]' or '## ${VERSION}' section in CHANGELOG.md"
+            exit 1
+          fi
+
+          if [ -n "$NEXT_SECTION" ]; then
+            END_LINE=$((SECTION_START + NEXT_SECTION - 1))
+            CHANGELOG_CONTENT=$(sed -n "$((SECTION_START+1)),$END_LINE p" CHANGELOG.md)
+          else
+            CHANGELOG_CONTENT=$(tail -n +$((SECTION_START+1)) CHANGELOG.md)
+          fi
+
+          # Write extracted section to a temp file for further validation
+          echo "$CHANGELOG_CONTENT" > CHANGELOG_SECTION.txt
+
+          # Guard rails: require at least one standard subsection and one bullet
+          if ! grep -Eq '^### (Added|Changed|Fixed|Deprecated|Removed|Security)' CHANGELOG_SECTION.txt; then
+            echo "::error::CHANGELOG section must include at least one subsection (Added/Changed/Fixed/Deprecated/rem/ Security)"
+            exit 1
+          fi
+          if ! grep -Eq '^[*+-] ' CHANGELOG_SECTION.txt; then
+            echo "::error::CHANGELOG section must include at least one bullet point under a subsection"
+            exit 1
+          fi
+          if grep -Eq '(TBD|WIP|<<<<<<<|=======|>>>>>>>)' CHANGELOG_SECTION.txt; then
+            echo "::error::CHANGELOG section contains placeholders or conflict markers"
+            exit 1
+          fi
+
+          # Format for GitHub Actions output
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create temporary changelog file for release
+        run: |
+          echo "# Changelog for v${{ steps.get_version.outputs.VERSION }}" > TEMP_CHANGELOG.md
+          echo "" >> TEMP_CHANGELOG.md
+          echo "${{ steps.changelog.outputs.changelog }}" >> TEMP_CHANGELOG.md
+
+      - name: Determine if prerelease
+        id: prerelease
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            # Check if tag contains 'alpha', 'beta', 'rc', etc.
+            if [[ "${{ github.ref_name }}" =~ -alpha|-beta|-rc|dev|test ]]; then
+              echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+            else
+              echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "IS_PRERELEASE=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
+          name: v${{ steps.get_version.outputs.VERSION }}
+          body_path: TEMP_CHANGELOG.md
+          prerelease: ${{ steps.prerelease.outputs.IS_PRERELEASE }}
+          token: ${{ secrets.GITHUB_TOKEN }}

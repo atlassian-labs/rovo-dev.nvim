@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim-version: [stable, nightly]
+
+    name: Test with Neovim ${{ matrix.neovim-version }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim-version }}
+
+      - name: Create cache directories
+        run: |
+          mkdir -p ~/.luarocks
+          mkdir -p ~/.local/share/nvim/site/pack
+
+      - name: Cache plugin dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.local/share/nvim/site/pack
+          key: ${{ runner.os }}-nvim-plugins-${{ hashFiles('**/test.sh') }}-${{ matrix.neovim-version }}
+          restore-keys: |
+            ${{ runner.os }}-nvim-plugins-
+
+      - name: Install plenary
+        run: |
+          mkdir -p "$HOME/.local/share/nvim/site/pack/vendor/start"
+          if [ ! -d "$HOME/.local/share/nvim/site/pack/vendor/start/plenary.nvim" ]; then
+            git clone --depth 1 https://github.com/nvim-lua/plenary.nvim "$HOME/.local/share/nvim/site/pack/vendor/start/plenary.nvim"
+          else
+            (cd "$HOME/.local/share/nvim/site/pack/vendor/start/plenary.nvim" && git pull --ff-only)
+          fi
+
+      - name: Display Neovim version
+        run: nvim --version
+
+      - name: Run Plenary tests
+        run: |
+          nvim --headless -u tests/minimal_init.lua \
+            -c "PlenaryBustedDirectory tests/ { minimal_init = './tests/minimal_init.lua' }" \
+            -c 'qa!'
+        continue-on-error: false
+# Documentation validation has been moved to the dedicated docs.yml workflow
