@@ -38,10 +38,6 @@ INSTALLATION                                              *rovo-dev-installation
 Using lazy.nvim (recommended): >lua
     {
       "atlassian-labs/rovo-dev.nvim",
-      cmd = { "RovoDevToggle" },
-      config = function(_, opts)
-        require("rovo-dev").setup(opts)
-      end,
       opts = {
         terminal = {
           cmd = { "acli", "rovodev", "run" },
