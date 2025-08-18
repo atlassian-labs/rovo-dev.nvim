@@ -26,7 +26,7 @@ function M.setup(opts)
   keymaps.register_keymaps(M)
 
   -- Register commands
-  commands.register_commands(M.config)
+  commands.register_commands(M)
 
   return M
 end

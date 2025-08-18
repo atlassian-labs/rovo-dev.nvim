@@ -19,6 +19,7 @@ Toggle the Rovo Dev terminal with a simple command or keymap:
 Or use the default keymap `<C-,>` in normal or terminal mode.
 
 The plugin also supports Rovo Dev CLI flags:
+
 ```vim
 :RovoDevRestore  " Start with --restore flag
 :RovoDevVerbose  " Start with --verbose flag
@@ -33,10 +34,6 @@ The plugin also supports Rovo Dev CLI flags:
 ```lua
 {
   "atlassian-labs/rovo-dev.nvim",
-  cmd = { "RovoDevToggle" },
-  config = function(_, opts)
-    require("rovo-dev").setup(opts)
-  end,
   opts = {
     terminal = {
       cmd = { "acli", "rovodev", "run" },
@@ -152,6 +149,7 @@ Contributions to rovo-dev.nvim are welcome! Please see [CONTRIBUTING.md](CONTRIB
 ## Versioning policy
 
 We follow Semantic Versioning (SemVer) using Git tags of the form `vX.Y.Z`.
+
 - MAJOR: Breaking changes to the user-facing API (Lua API, commands, config schema, or documented behavior)
 - MINOR: Backward-compatible features
 - PATCH: Backward-compatible bug fixes
@@ -168,7 +166,8 @@ We maintain a human-readable changelog in `CHANGELOG.md` (Keep a Changelog style
 
 Two supported paths:
 
-1) Tag-driven release (recommended)
+1. Tag-driven release (recommended)
+
 - Update `CHANGELOG.md` and `lua/rovo-dev/version.lua` (no leading `v` in the file)
 - Commit your changes
 - Create and push a tag:
@@ -180,12 +179,14 @@ git push origin vX.Y.Z
 
 - CI will verify that `version.lua` matches the tag and create the GitHub release
 
-2) Manual release (workflow dispatch)
+2. Manual release (workflow dispatch)
+
 - In GitHub Actions, run the “Release” workflow manually
 - Provide the version as `X.Y.Z` (no leading `v`)
 - The workflow will write `lua/rovo-dev/version.lua`, commit, push, and create the release
 
 Notes
+
 - Avoid force-updating or reusing tags
 - Optionally sign tags: `git tag -s vX.Y.Z -m "vX.Y.Z"`
 
