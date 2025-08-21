@@ -88,7 +88,7 @@ jobs:
         run: |
           VERSION="${{ steps.get_version.outputs.VERSION }}"
           echo "Checking CHANGELOG.md for version ${VERSION}"
-          if ! grep -Eq "^## \\[(?i:${VERSION})\\]|^## (?i:${VERSION})" CHANGELOG.md; then
+          if ! grep -qE "^## \[${VERSION}\]|^## ${VERSION}($|[^0-9.])" CHANGELOG.md; then
             echo "::error::CHANGELOG.md must contain a section header for ${VERSION} (e.g. '## [${VERSION}] - YYYY-MM-DD')"
             echo "Example format: ## [${VERSION}] - $(date +%Y-%m-%d)"
             exit 1
