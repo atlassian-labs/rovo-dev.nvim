@@ -60,7 +60,7 @@ jobs:
         if: github.event_name == 'push' && github.ref_type == 'tag'
         run: |
           VERSION="${{ steps.get_version.outputs.VERSION }}"
-          FILE_VER=$(sed -nE 's/.*version[[:space:]]*=[[:space:]]*["'"'']([^"'"'']+)["'"''].*/\1/p' lua/rovo-dev/version.lua | head -n1)
+          FILE_VER=$(sed -nE "s/.*version[[:space:]]*=[[:space:]]*['\"][^'\"]*([0-9]+\.[0-9]+\.[0-9]+)['\"].*/\1/p" lua/rovo-dev/version.lua | head -n1)
           echo "version.lua=$FILE_VER, tag=$VERSION"
           if [ "$FILE_VER" != "$VERSION" ]; then
             echo "::error::lua/rovo-dev/version.lua ($FILE_VER) does not match tag version ($VERSION)"
