@@ -13,7 +13,9 @@ local function reset_state()
   pcall(vim.cmd, 'silent! only')
   local ok, state = pcall(require, 'rovo-dev.state')
   if ok then
-    if state.has_win() then pcall(vim.api.nvim_win_close, state.win, true) end
+    if state.has_win() then
+      pcall(vim.api.nvim_win_close, state.win, true)
+    end
     pcall(state.reset_buf)
     pcall(state.clear_win)
   end
@@ -24,7 +26,9 @@ local original_termopen
 local function stub_termopen(capture)
   original_termopen = original_termopen or vim.fn.termopen
   vim.fn.termopen = function(cmd, opts)
-    if capture then capture(cmd, opts) end
+    if capture then
+      capture(cmd, opts)
+    end
     return 4242 -- fake job id
   end
 end
@@ -40,7 +44,9 @@ local function visible_windows_for_buf(buf)
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     if vim.api.nvim_win_get_buf(win) == buf then
       local cfg = vim.api.nvim_win_get_config(win)
-      if not cfg or cfg.relative == '' then table.insert(wins, win) end
+      if not cfg or cfg.relative == '' then
+        table.insert(wins, win)
+      end
     end
   end
   return wins
@@ -82,7 +88,9 @@ describe('rovo-dev.nvim', function()
 
   it('appends flags to cmd for list and string forms', function()
     local captured
-    stub_termopen(function(cmd) captured = cmd end)
+    stub_termopen(function(cmd)
+      captured = cmd
+    end)
 
     local rovo = require('rovo-dev')
     rovo.setup({ terminal = { cmd = { 'acli', 'rovodev', 'run' } } })
@@ -90,12 +98,16 @@ describe('rovo-dev.nvim', function()
     rovo.toggle({ '--verbose', '--restore' })
 
     assert.is_true(type(captured) == 'table')
-    eq('--verbose', captured[#captured-1])
+    eq('--verbose', captured[#captured - 1])
     eq('--restore', captured[#captured])
 
     -- string form
-    unload_rovo(); reset_state(); captured = nil
-    stub_termopen(function(cmd) captured = cmd end)
+    unload_rovo()
+    reset_state()
+    captured = nil
+    stub_termopen(function(cmd)
+      captured = cmd
+    end)
     rovo = require('rovo-dev')
     rovo.setup({ terminal = { cmd = 'acli rovodev run' } })
     rovo.toggle({ '--shadow' })
@@ -131,5 +143,74 @@ describe('rovo-dev.nvim', function()
     eq(0, #notifications)
 
     vim.notify = old_notify
+  end)
+
+  it('handles deleted files correctly without repeated notifications', function()
+    stub_termopen()
+    local rovo = require('rovo-dev')
+    rovo.setup({})
+    rovo.toggle()
+
+    -- Create a temporary file
+    local test_file = 'tmp_rovodev_deleted_test.txt'
+    vim.fn.writefile({ 'test content' }, test_file)
+
+    -- Open the file in a buffer
+    vim.cmd('edit ' .. test_file)
+    local file_buf = vim.api.nvim_get_current_buf()
+
+    local notifications = {}
+    local old_notify = vim.notify
+    vim.notify = function(msg, level, opts)
+      table.insert(notifications, { msg = msg, level = level, opts = opts })
+    end
+
+    -- Delete the file externally
+    vim.fn.delete(test_file)
+
+    -- Trigger FileChangedShellPost multiple times
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+
+    -- Should only get one notification about deletion
+    eq(1, #notifications)
+    assert.is_truthy(notifications[1].msg:match('File deleted:'))
+    eq(vim.log.levels.WARN, notifications[1].level)
+
+    -- Test recreation resets the flag via external write
+    notifications = {}
+    vim.fn.writefile({ 'recreated' }, test_file)
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+
+    eq(1, #notifications)
+    assert.is_truthy(notifications[1].msg:match('Reloaded from disk:'))
+    eq(vim.log.levels.INFO, notifications[1].level)
+
+    -- Delete again - should notify again
+    notifications = {}
+    vim.fn.delete(test_file)
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+
+    eq(1, #notifications)
+    assert.is_truthy(notifications[1].msg:match('File deleted:'))
+
+    -- Now recreate by writing the buffer (simulates user :write)
+    notifications = {}
+    vim.api.nvim_buf_set_lines(file_buf, 0, -1, false, { 'recreated by buffer write' })
+    vim.cmd('write')
+    -- Writing should clear the deletion flag via BufWritePost; no notification expected here
+    eq(0, #notifications)
+
+    -- Delete again - should notify again after buffer write recreation
+    vim.fn.delete(test_file)
+    vim.api.nvim_exec_autocmds('FileChangedShellPost', { buffer = file_buf })
+
+    eq(1, #notifications)
+    assert.is_truthy(notifications[1].msg:match('File deleted:'))
+
+    vim.notify = old_notify
+    vim.cmd('bdelete! ' .. file_buf)
   end)
 end)
