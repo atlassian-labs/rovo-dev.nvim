@@ -8,6 +8,20 @@ M.defaults = {
     -- Width of the split. If 0 < width < 1, it's treated as a ratio of total columns.
     -- Otherwise, it's treated as fixed number of columns.
     width = 0.33,
+    -- Floating window configuration
+    float = {
+      enabled = false, -- When true, open terminal in a centered floating window
+      -- If 0 < width < 1, treated as a ratio of total columns. Otherwise fixed columns.
+      width = 0.9,
+      -- If 0 < height < 1, treated as a ratio of total lines. Otherwise fixed lines.
+      height = 0.8,
+      -- Floating window border style (rounded, single, double, none, etc.)
+      border = 'rounded',
+      -- If row/col are nil, window is centered. Provide numbers to override placement.
+      row = nil,
+      col = nil,
+      style = 'minimal',
+    },
   },
 
   -- File refresh

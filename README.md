@@ -135,6 +135,33 @@ Complete configuration options:
 
 ### Behavior
 
+- Split vs Floating window:
+  - By default, the Rovo Dev terminal opens as a vertical split on the configured side.
+  - You can also open it in a centered floating window by enabling `terminal.float.enabled` in your setup.
+
+Example:
+
+```lua
+require('rovo-dev').setup({
+  terminal = {
+    -- existing split options
+    side = 'right',
+    width = 0.33,
+
+    -- floating window options
+    float = {
+      enabled = true,      -- open as a float instead of a split
+      width = 0.8,         -- 80% of columns (or a fixed integer like 100)
+      height = 0.7,        -- 70% of total lines (excluding cmdheight)
+      border = 'rounded',  -- 'single', 'double', 'none', etc.
+      -- row/col can be set to numbers to override centering (defaults to centered)
+      -- row = 5,
+      -- col = 10,
+    },
+  },
+})
+```
+
 - **Session persistence**: The terminal buffer and job persist when the window is closed (`bufhidden=hide`)
 - **Fixed width**: Uses `winfixwidth = true` to prevent auto-resizing when other windows change
 - **File synchronization**: Automatically runs `:checktime` on focus/idle events and terminal output

@@ -213,4 +213,42 @@ describe('rovo-dev.nvim', function()
     vim.notify = old_notify
     vim.cmd('bdelete! ' .. file_buf)
   end)
+
+  it('creates a centered floating terminal window when enabled', function()
+    stub_termopen()
+    local rovo = require('rovo-dev')
+    -- Use fixed dimensions for deterministic center calculation
+    rovo.setup({
+      terminal = {
+        cmd = { 'echo', 'rovodev' },
+        float = { enabled = true, width = 80, height = 20, border = 'single' },
+      },
+    })
+
+    rovo.toggle()
+
+    local state = require('rovo-dev.state')
+    truthy(state.has_win())
+    truthy(state.has_buf())
+
+    local win = state.win
+    local cfg = vim.api.nvim_win_get_config(win)
+    -- It should be a floating window
+    assert.is_truthy(cfg and cfg.relative and cfg.relative ~= '')
+    eq('editor', cfg.relative)
+    -- Account for border taking 2 cells in each dimension
+    local border_extra = 2
+    local expected_width = math.min(80, vim.o.columns - border_extra)
+    local expected_height = math.min(20, (vim.o.lines - vim.o.cmdheight) - border_extra)
+    eq(expected_width, cfg.width)
+    eq(expected_height, cfg.height)
+    -- Centering check
+    local expected_col = math.floor((vim.o.columns - expected_width) / 2)
+    local expected_row = math.floor(((vim.o.lines - vim.o.cmdheight) - expected_height) / 2)
+    -- cfg.col/row can be numbers or tables depending on Neovim version; accept number
+    local col = type(cfg.col) == 'table' and cfg.col[1] or cfg.col
+    local row = type(cfg.row) == 'table' and cfg.row[1] or cfg.row
+    eq(expected_col, math.floor(col))
+    eq(expected_row, math.floor(row))
+  end)
 end)

@@ -10,6 +10,47 @@ local function calc_width(config)
   return math.min(120, w or 40)
 end
 
+local function calc_float_size(value, total, fallback_ratio, max_size)
+  if type(value) == 'number' then
+    if value > 0 and value < 1 then
+      return math.floor(total * value)
+    else
+      return math.floor(math.min(value, max_size or total))
+    end
+  end
+  -- default to ratio of total if not provided
+  return math.floor(math.min(total * (fallback_ratio or 0.8), max_size or total))
+end
+
+local function open_centered_float_with_buf(buf, config)
+  local float = config.terminal.float or {}
+  local width = calc_float_size(float.width, vim.o.columns, 0.9, vim.o.columns - 2)
+  local height = calc_float_size(float.height, vim.o.lines - vim.o.cmdheight, 0.8, (vim.o.lines - vim.o.cmdheight) - 2)
+
+  local col = float.col
+  local row = float.row
+  if type(col) ~= 'number' then
+    col = math.floor((vim.o.columns - width) / 2)
+  end
+  if type(row) ~= 'number' then
+    -- subtract 1 line to account for statusline/cmdheight nuances
+    local total = (vim.o.lines - vim.o.cmdheight)
+    row = math.floor((total - height) / 2)
+  end
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    width = width,
+    height = height,
+    col = col,
+    row = row,
+    style = float.style or 'minimal',
+    border = float.border or 'rounded',
+  })
+
+  return win
+end
+
 local function place_split(side)
   if side == 'left' then
     vim.cmd('topleft vsplit')
@@ -67,13 +108,14 @@ local function trigger_checktime_debounced(config)
   end, wait)
 end
 
-local function create_new_term_in_current_win(config, flags)
+local function create_new_term_in_current_win(config, flags, opts)
+  opts = opts or {}
+  local set_window = opts.set_window ~= false -- default true
+
   -- Create a scratch buffer which becomes a terminal when termopen runs.
   local buf = vim.api.nvim_create_buf(false, true) -- unlisted, scratch
   vim.bo[buf].bufhidden = 'hide' -- keep buffer (and job) on window close
   vim.bo[buf].filetype = 'rovo-dev'
-
-  vim.api.nvim_win_set_buf(0, buf)
 
   local base_cmd = config.terminal.cmd
   local cmd = base_cmd
@@ -91,21 +133,43 @@ local function create_new_term_in_current_win(config, flags)
     end
   end
 
-  local job = vim.fn.termopen(cmd, {
-    on_exit = function(_, _code, _event)
-      -- Mark job as gone; keep buffer contents for logs if desired
-      if state.buf == buf then
-        state.job = nil
-      end
-    end,
-    on_stdout = function(_, _data, _name)
-      -- Any terminal output could indicate file changes; debounce a check
-      trigger_checktime_debounced(config)
-    end,
-    on_stderr = function(_, _data, _name)
-      trigger_checktime_debounced(config)
-    end,
-  })
+  local job
+  if set_window then
+    -- Attach new buffer to the current window before starting terminal
+    vim.api.nvim_win_set_buf(0, buf)
+    job = vim.fn.termopen(cmd, {
+      on_exit = function(_, _code, _event)
+        -- Mark job as gone; keep buffer contents for logs if desired
+        if state.buf == buf then
+          state.job = nil
+        end
+      end,
+      on_stdout = function(_, _data, _name)
+        -- Any terminal output could indicate file changes; debounce a check
+        trigger_checktime_debounced(config)
+      end,
+      on_stderr = function(_, _data, _name)
+        trigger_checktime_debounced(config)
+      end,
+    })
+  else
+    -- Start terminal job in the created buffer without hijacking a window
+    vim.api.nvim_buf_call(buf, function()
+      job = vim.fn.termopen(cmd, {
+        on_exit = function(_, _code, _event)
+          if state.buf == buf then
+            state.job = nil
+          end
+        end,
+        on_stdout = function(_, _data, _name)
+          trigger_checktime_debounced(config)
+        end,
+        on_stderr = function(_, _data, _name)
+          trigger_checktime_debounced(config)
+        end,
+      })
+    end)
+  end
 
   state.buf = buf
   state.job = job
@@ -121,6 +185,27 @@ function M.open_win(config, flags)
     pcall(vim.api.nvim_set_current_win, state.win)
     -- Reset view to ensure no horizontal offset remains from previous session
     pcall(reset_view, state.win)
+    vim.cmd('startinsert')
+    return
+  end
+
+  local use_float = config.terminal.float and config.terminal.float.enabled
+  if use_float then
+    -- Create or reuse the terminal buffer
+    local buf
+    if state.has_buf() and state.job_alive() then
+      buf = state.buf
+    else
+      if state.has_buf() and not state.job_alive() then
+        state.reset_buf()
+      end
+      buf = select(1, create_new_term_in_current_win(config, flags, { set_window = false }))
+    end
+
+    local win = open_centered_float_with_buf(buf, config)
+    state.win = win
+    apply_window(win, config)
+    pcall(reset_view, win)
     vim.cmd('startinsert')
     return
   end
