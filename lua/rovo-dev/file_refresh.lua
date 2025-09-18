@@ -41,6 +41,23 @@ function M.setup(config)
     return false
   end
 
+  -- Reset deletion notification flag when the user writes the buffer (recreates file)
+  vim.api.nvim_create_autocmd('BufWritePost', {
+    group = augroup,
+    callback = function(args)
+      local buf = args.buf
+      local name = vim.api.nvim_buf_get_name(buf)
+      if not name or name == '' then
+        return
+      end
+      -- If the file now exists on disk, clear any previous deletion notification flag
+      if vim.fn.filereadable(name) == 1 then
+        vim.b[buf].rovo_dev_deletion_notified = nil
+      end
+    end,
+    desc = 'Rovo Dev: reset deletion notification on write',
+  })
+
   -- Notify when buffers were reloaded from disk
   vim.api.nvim_create_autocmd('FileChangedShellPost', {
     group = augroup,
@@ -53,12 +70,27 @@ function M.setup(config)
       if not name or name == '' then
         return
       end
-      name = vim.fn.fnamemodify(name, ':~:.')
-      vim.notify(
-        ('Reloaded from disk: %s'):format(name),
-        vim.log.levels.INFO,
-        { title = 'Rovo Dev' }
-      )
+
+      -- Check if the file actually exists
+      if vim.fn.filereadable(name) == 1 then
+        -- Reset deletion notification flag since file exists again
+        vim.b[buf].rovo_dev_deletion_notified = nil
+        name = vim.fn.fnamemodify(name, ':~:.')
+        vim.notify(
+          ('Reloaded from disk: %s'):format(name),
+          vim.log.levels.INFO,
+          { title = 'Rovo Dev' }
+        )
+      else
+        -- File was deleted - show a different notification only once
+        -- We use a buffer variable to track if we've already notified about deletion
+        local already_notified = vim.b[buf].rovo_dev_deletion_notified
+        if not already_notified then
+          vim.b[buf].rovo_dev_deletion_notified = true
+          name = vim.fn.fnamemodify(name, ':~:.')
+          vim.notify(('File deleted: %s'):format(name), vim.log.levels.WARN, { title = 'Rovo Dev' })
+        end
+      end
     end,
     desc = 'Notify when a buffer is updated externally',
   })

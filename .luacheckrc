@@ -2,66 +2,91 @@
 
 std = {
   globals = {
-    "vim",
-    "table",
-    "string",
-    "math",
-    "os",
-    "io",
+    'vim',
+    'table',
+    'string',
+    'math',
+    'os',
+    'io',
+    'package',
   },
   read_globals = {
-    "jit",
-    "require",
-    "pcall",
-    "type",
-    "ipairs",
-    "pairs",
-    "tostring",
-    "tonumber",
-    "error",
-    "assert",
-    "_VERSION",
+    'jit',
+    'require',
+    'pcall',
+    'type',
+    'ipairs',
+    'pairs',
+    'tostring',
+    'tonumber',
+    'error',
+    'assert',
+    '_VERSION',
   },
 }
 
 -- Patterns for files to exclude
 exclude_files = {
-  ".luarocks/*",
-  "lua/plenary/*",
-  "tests/plenary/*",
+  '.luarocks/*',
+  'lua/plenary/*',
+  'tests/plenary/*',
 }
 
 -- Special configuration for scripts
-files["scripts/**/*.lua"] = {
+files['scripts/**/*.lua'] = {
   globals = {
-    "print", "arg",
+    'print',
+    'arg',
   },
 }
 
 -- Special configuration for test files
-files["tests/**/*.lua"] = {
+files['tests/**/*.lua'] = {
   -- Allow common globals used in testing
   globals = {
     -- Common testing globals
-    "describe", "it", "before_each", "after_each", "teardown", "pending", "spy", "stub", "mock",
+    'describe',
+    'it',
+    'before_each',
+    'after_each',
+    'teardown',
+    'pending',
+    'spy',
+    'stub',
+    'mock',
     -- Lua standard utilities used in tests
-    "print", "dofile",
+    'print',
+    'dofile',
     -- Test helpers
-    "test", "expect",
+    'test',
+    'expect',
     -- Global test state (allow modification)
-    "_G",
+    '_G',
   },
 
   -- Define fields for assert from luassert
   read_globals = {
     assert = {
       fields = {
-        "is_true", "is_false", "is_nil", "is_not_nil", "equals",
-        "same", "near", "matches", "has_error",
-        "truthy", "falsy", "has", "has_no", "is_string", "is_number",
-        "is_function", "is_table"
-      }
-    }
+        'is_true',
+        'is_false',
+        'is_nil',
+        'is_not_nil',
+        'equals',
+        'same',
+        'near',
+        'matches',
+        'has_error',
+        'truthy',
+        'falsy',
+        'has',
+        'has_no',
+        'is_string',
+        'is_number',
+        'is_function',
+        'is_table',
+      },
+    },
   },
 
   -- For test files only, ignore unused arguments as they're often used for mock callbacks
@@ -87,6 +112,6 @@ max_line_length = 120
 max_cyclomatic_complexity = 20
 
 -- Override settings for specific files
-files["lua/rovo-dev/config.lua"] = {
+files['lua/rovo-dev/config.lua'] = {
   max_cyclomatic_complexity = 30, -- The validate_config function has high complexity due to many validation checks
 }
