@@ -5,9 +5,9 @@ local M = {}
 local function calc_width(config)
   local w = config.terminal.width
   if type(w) == 'number' and w > 0 and w < 1 then
-    return math.max(20, math.floor(vim.o.columns * w))
+    return math.min(120, math.floor(vim.o.columns * w))
   end
-  return math.max(20, w or 40)
+  return math.min(120, w or 40)
 end
 
 local function place_split(side)
